@@ -1,0 +1,6 @@
+interface:
+  display_name: "Codex Orchestrator"
+  short_description: "Coordinate focused built-in Codex teams"
+  default_prompt: "Use $codex-orchestrator to coordinate this task with the smallest effective Codex team."
+policy:
+  allow_implicit_invocation: true

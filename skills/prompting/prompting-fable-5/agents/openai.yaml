@@ -1,0 +1,6 @@
+interface:
+  display_name: "Prompting Fable 5"
+  short_description: "Apply tested Claude Fable 5 prompting"
+  default_prompt: "Use $prompting-fable-5 to improve this Claude Fable 5 prompt."
+policy:
+  allow_implicit_invocation: false

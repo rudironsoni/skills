@@ -1,4 +1,30 @@
 {
   "name": "rudironsoni-skills",
-  "skills": []
+  "version": "1.0.0",
+  "description": "Rudimar Ronsoni's reusable agent skills for orchestration, prompting, engineering, writing, and visualization.",
+  "author": {
+    "name": "Rudimar Ronsoni",
+    "url": "https://github.com/rudironsoni"
+  },
+  "homepage": "https://github.com/rudironsoni/skills",
+  "repository": "https://github.com/rudironsoni/skills",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "orchestration",
+    "prompting",
+    "engineering",
+    "writing",
+    "visualization"
+  ],
+  "skills": [
+    "./skills/orchestration/goal-mode",
+    "./skills/orchestration/codex-orchestrator",
+    "./skills/prompting/prompting-fable-5",
+    "./skills/prompting/prompting-opus-4-8",
+    "./skills/prompting/prompting-sonnet-5",
+    "./skills/engineering/linus-torvalds",
+    "./skills/writing/ogilvy-writing",
+    "./skills/visualization/obsidian-excalidraw-diagram"
+  ]
 }

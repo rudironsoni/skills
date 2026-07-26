@@ -1,0 +1,6 @@
+interface:
+  display_name: "Prompting Opus 4.8"
+  short_description: "Apply tested Claude Opus 4.8 prompting"
+  default_prompt: "Use $prompting-opus-4-8 to improve this Claude Opus 4.8 prompt."
+policy:
+  allow_implicit_invocation: false

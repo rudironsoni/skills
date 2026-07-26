@@ -1,48 +1,66 @@
 # Rudi's Skills
 
-Public repository for reusable agent skills.
+Reusable agent skills grouped by capability and distributed from one canonical repository.
 
-This repo is structured as a skills distribution for Claude, Codex, and OpenCode. It keeps one canonical `skills/` tree and exposes that tree through each tool's plugin or discovery surface.
+## Install
 
-## Layout
-
-```text
-skills/
-  <skill-name>/
-    SKILL.md
-    agents/openai.yaml
-    scripts/
-    references/
-    assets/
-```
-
-Only `SKILL.md` is required for a skill. The other folders are optional and should exist only when a skill needs them.
-
-## Plugin Surfaces
-
-- Claude: `.claude-plugin/plugin.json`
-- Codex: `.codex-plugin/plugin.json`
-- OpenCode: `.opencode/plugins/rudironsoni-skills.ts`
-
-OpenCode also discovers `SKILL.md` files from `.opencode/skills`, `.claude/skills`, `.agents/skills`, and their global equivalents. Use `make link` to link the canonical skills into local global skill folders.
-
-## Commands
+Install selected skills into Claude Code, Codex, OpenCode, or another Agent Skills-compatible harness:
 
 ```bash
-make help
+npx skills@latest add rudironsoni/skills
+```
+
+Install the read-only, repo-wide Claude Code plugin:
+
+```bash
+claude plugin marketplace add rudironsoni/skills
+claude plugin install rudironsoni-skills@rudironsoni
+```
+
+Codex and OpenCode use the Agent Skills installer above. Their native plugin manifests do not support selecting skills across this repository's grouped layout.
+
+Maintainers can link every canonical skill into the local global skill directories:
+
+```bash
+make link
+```
+
+## Skills
+
+### Orchestration
+
+- [goal-mode](./skills/orchestration/goal-mode/SKILL.md) - Run and bound Claude Code goal loops with evaluator-visible evidence.
+- [codex-orchestrator](./skills/orchestration/codex-orchestrator/SKILL.md) - Delegate independent Codex work with explicit ownership and integration checks.
+
+### Prompting
+
+- [prompting-fable-5](./skills/prompting/prompting-fable-5/SKILL.md) - Prompt Claude Fable 5 and Mythos 5.
+- [prompting-opus-4-8](./skills/prompting/prompting-opus-4-8/SKILL.md) - Prompt Claude Opus 4.8.
+- [prompting-sonnet-5](./skills/prompting/prompting-sonnet-5/SKILL.md) - Prompt Claude Sonnet 5.
+
+### Engineering
+
+- [linus-torvalds](./skills/engineering/linus-torvalds/SKILL.md) - Review and write code with Linus Torvalds-inspired engineering principles.
+
+### Writing
+
+- [ogilvy-writing](./skills/writing/ogilvy-writing/SKILL.md) - Edit business writing for clarity, brevity, and action.
+
+### Visualization
+
+- [obsidian-excalidraw-diagram](./skills/visualization/obsidian-excalidraw-diagram/SKILL.md) - Generate engineering-style Excalidraw diagrams.
+
+## Development
+
+```bash
 make validate
+make list
 make link
 make unlink
 ```
 
-`make validate` checks JSON manifests, skill frontmatter, Codex plugin metadata when the local validator is available, and the OpenCode plugin scaffold.
+The complete collection and Claude plugin are versioned together. The current release is `1.0.0`.
 
-## Adding a Skill
+## License
 
-Create a folder directly under `skills/`:
-
-```text
-skills/my-skill/SKILL.md
-```
-
-Use lowercase hyphen-case for skill folder names and frontmatter `name` values. Do not add draft, private, or deprecated categories until there is a real distribution need.
+MIT

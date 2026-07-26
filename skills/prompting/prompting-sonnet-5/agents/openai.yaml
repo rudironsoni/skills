@@ -1,0 +1,6 @@
+interface:
+  display_name: "Prompting Sonnet 5"
+  short_description: "Apply tested Claude Sonnet 5 prompting"
+  default_prompt: "Use $prompting-sonnet-5 to improve this Claude Sonnet 5 prompt."
+policy:
+  allow_implicit_invocation: false

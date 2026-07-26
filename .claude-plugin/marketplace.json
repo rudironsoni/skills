@@ -1,0 +1,22 @@
+{
+  "name": "rudironsoni",
+  "owner": {
+    "name": "Rudimar Ronsoni",
+    "url": "https://github.com/rudironsoni"
+  },
+  "description": "Rudimar Ronsoni's reusable agent skills.",
+  "plugins": [
+    {
+      "name": "rudironsoni-skills",
+      "source": "./",
+      "description": "Reusable skills for orchestration, prompting, engineering, writing, and visualization.",
+      "category": "productivity",
+      "keywords": [
+        "skills",
+        "engineering",
+        "prompting",
+        "productivity"
+      ]
+    }
+  ]
+}
