@@ -13,6 +13,8 @@ PLUGIN_PATH = REPO_ROOT / ".claude-plugin" / "plugin.json"
 MARKETPLACE_PATH = REPO_ROOT / ".claude-plugin" / "marketplace.json"
 PACKAGE_PATH = REPO_ROOT / "package.json"
 README_PATH = REPO_ROOT / "README.md"
+RELEASE_CONFIG_PATH = REPO_ROOT / "release-please-config.json"
+RELEASE_MANIFEST_PATH = REPO_ROOT / ".release-please-manifest.json"
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SEMVER_RE = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 ALLOWED_RESOURCE_DIRS = {"agents", "assets", "references", "scripts"}
@@ -91,6 +93,8 @@ def main() -> int:
     plugin = load_json(PLUGIN_PATH, errors)
     marketplace = load_json(MARKETPLACE_PATH, errors)
     package = load_json(PACKAGE_PATH, errors)
+    release_config = load_json(RELEASE_CONFIG_PATH, errors)
+    release_manifest = load_json(RELEASE_MANIFEST_PATH, errors)
     top_readme = README_PATH.read_text(encoding="utf-8")
 
     package_version = package.get("version")
@@ -99,6 +103,29 @@ def main() -> int:
         errors.append("package.json version must use strict semantic versioning")
     if plugin_version != package_version:
         errors.append("package.json and .claude-plugin/plugin.json versions must match")
+    if release_manifest.get(".") != package_version:
+        errors.append("Release Please manifest, package, and Claude plugin versions must match")
+
+    release_packages = release_config.get("packages", {})
+    root_release = release_packages.get(".") if isinstance(release_packages, dict) else None
+    if not isinstance(root_release, dict):
+        errors.append("Release Please must configure the root package")
+        root_release = {}
+    if root_release.get("release-type") != "node":
+        errors.append("Release Please must use the node release type for the root package")
+    if root_release.get("include-component-in-tag") is not False:
+        errors.append("Release Please tags must not include the package name")
+    if root_release.get("include-v-in-tag") is not True:
+        errors.append("Release Please tags must use the v prefix")
+    if release_config.get("bootstrap-sha") != "a80d000fc66a3622ea6dcf6934633004394b1659":
+        errors.append("Release Please bootstrap SHA must remain the v1.0.0 commit")
+    plugin_version_updater = {
+        "type": "json",
+        "path": ".claude-plugin/plugin.json",
+        "jsonpath": "$.version",
+    }
+    if plugin_version_updater not in root_release.get("extra-files", []):
+        errors.append("Release Please must update the Claude plugin version")
 
     plugin_name = plugin.get("name")
     marketplace_plugins = marketplace.get("plugins", [])

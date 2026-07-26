@@ -59,7 +59,7 @@ make link
 make unlink
 ```
 
-The complete collection and Claude plugin are versioned together. The current release is `1.0.0`.
+The complete collection and Claude plugin are versioned together. Git tags and GitHub Releases are authoritative.
 
 ## License
 
