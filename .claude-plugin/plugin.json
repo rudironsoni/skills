@@ -25,6 +25,7 @@
     "./skills/prompting/prompting-sonnet-5",
     "./skills/engineering/linus-torvalds",
     "./skills/writing/ogilvy-writing",
+    "./skills/writing/stop-slop",
     "./skills/visualization/obsidian-excalidraw-diagram"
   ]
 }

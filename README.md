@@ -45,6 +45,7 @@ make link
 ### Writing
 
 - [ogilvy-writing](./skills/writing/ogilvy-writing/SKILL.md) - Edit business writing for clarity, brevity, and action.
+- [stop-slop](./skills/writing/stop-slop/SKILL.md) - Remove predictable AI writing patterns from prose.
 
 ### Visualization
 
