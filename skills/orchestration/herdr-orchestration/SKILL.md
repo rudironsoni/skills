@@ -17,10 +17,26 @@ Act as the **controller** for interactive worker agents running in Herdr panes. 
 - Scope every action to the caller workspace unless the user names another target.
 - Resolve workspace, tab, pane, and agent IDs from Herdr output. Treat IDs as opaque.
 - Keep the caller pane focused. Use `--current`, explicit IDs, and `--no-focus` for background work.
+- Place every session, workspace, tab, and worktree per the Layout Contract.
+- Start workers as `codex` by default; start `opencode` or `pi` only when the user names them. When an organization policy skill is loaded, its worker-kind and branch-naming rules override these defaults.
 - Give each worker an independent objective and file claim. Isolate overlapping edits in separate worktrees.
 - Send input only to a uniquely resolved worker in `idle` or `done` state.
 - Treat worker claims as untrusted until the controller verifies them.
 - Record a worker's report before closing a pane created for the delegation.
+
+## Layout Contract
+
+| Herdr object | Name | Working directory |
+|---|---|---|
+| Session | `<organization>` | `~/src/<organization>` |
+| Workspace | `<repo>` | `~/src/<organization>/<repo>` |
+| First tab of a workspace | `<repo>` | `~/src/<organization>/<repo>` |
+| Worktree tab | `<repo>-<branch-folder>` | `~/src/<organization>/<repo>.worktrees/<repo>-<branch-folder>` |
+
+- Launch or attach a session with `herdr --session "<organization>"` from a shell outside Herdr. Inside Herdr, verify the current session serves the target organization.
+- Worktree tabs live inside their repo's workspace. Derive `<branch-folder>` by lowercasing the branch name and replacing `/` with `-`.
+- Name branches with Conventional Branches: `<type>/<description>`, lowercase kebab-case after the slash. Allowed types: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, `test`. Use additional types `feature`, `bugfix`, `hotfix`, `release`, `ai`, `copilot`, `cursor`, `claude`, `codex` only when they match an established repository workflow.
+- Validate every generated branch name with `git check-ref-format --branch <name>`.
 
 ## 1. Preflight the Session
 
@@ -38,15 +54,24 @@ herdr agent list
 
 Treat the installed binary as the syntax authority. Run `herdr agent`, `herdr pane`, or another command group without a subcommand when its current interface is uncertain. Use `herdr --help` for discovery because bare `herdr` launches or attaches the TUI. Inspect a potentially mutating nested command through help or source documentation instead of trial execution.
 
+Resolve the current session and confirm it serves the target organization (`herdr session list`, `herdr status`). Resolve or create the target repo's workspace and repo tab per the Layout Contract:
+
+```bash
+herdr workspace list
+herdr workspace create --cwd ~/src/<organization>/<repo> --label <repo> --no-focus
+herdr tab list
+```
+
 Require a current integration for each requested worker kind so lifecycle detection is authoritative. Ask before installing or updating an integration because that changes durable machine state.
 
-**Complete when:** Herdr is reachable, caller workspace/tab/pane IDs are recorded, existing agents are inventoried, and every requested worker kind has a usable integration. If `HERDR_ENV=1` is absent, report that this agent is outside Herdr and stop.
+**Complete when:** Herdr is reachable, the session matches the target organization, the target repo has a workspace and repo tab matching the Layout Contract, caller workspace/tab/pane IDs are recorded, existing agents are inventoried, and every requested worker kind has a usable integration. If `HERDR_ENV=1` is absent, report that this agent is outside Herdr and stop.
 
 ## 2. Build Delegation Packets
 
 Create one standalone packet per worker containing:
 
 - exact repository or working-directory path;
+- worker kind chosen by the routing invariant;
 - objective and expected deliverable;
 - files, packages, or behavior in scope;
 - explicit exclusions and a unique file claim;
@@ -59,18 +84,30 @@ Prefer small independent slices. Maintain a worker registry with name, kind, pan
 
 For plan-first work, inspect the installed agent's current mode controls, confirm plan mode visibly before sending the packet, review the returned plan against scope, and accept it only when the user requested that execution mode. Derive TUI labels and key sequences from the installed agent because they are version-specific.
 
-**Complete when:** every worker has a non-overlapping contract, required evidence, stop conditions, and a registry entry.
+**Complete when:** every worker has a non-overlapping contract, a routed kind, required evidence, stop conditions, and a registry entry.
 
 ## 3. Provision Interactive Workers
 
-Default to a sibling pane in the caller tab and current working directory. Inspect layout before choosing a direction:
+For same-repo, non-overlapping work, split a sibling pane in the repo tab. Inspect layout before choosing a direction:
 
 ```bash
 herdr pane layout --pane "$HERDR_PANE_ID"
 herdr pane split --current --direction right --cwd "$PWD" --no-focus
 ```
 
-Use `down` when the caller pane is narrow or tall. Read the new pane ID from `.result.pane.pane_id`; never infer it from visual order. Start a supported agent in an existing shell pane at an interactive prompt:
+Use `down` when the caller pane is narrow or tall. Read the new pane ID from `.result.pane.pane_id`; never infer it from visual order.
+
+For overlapping or isolated work, derive the branch and worktree names per the Layout Contract, then create a worktree tab inside the repo workspace:
+
+```bash
+herdr worktree create --workspace <repo-workspace-id> --branch <branch> \
+  --path ~/src/<organization>/<repo>.worktrees/<repo>-<branch-folder> \
+  --label <repo>-<branch-folder> --no-focus --json
+```
+
+Use `herdr worktree open` for an existing checkout. Read tab and pane IDs from the JSON result. Preserve the mapping between worktree, worker name, and claimed files in the registry.
+
+Start a supported agent in an existing shell pane at an interactive prompt, with the kind routed by the invariants:
 
 ```bash
 herdr agent start <name> --kind <kind> --pane <pane-id>
@@ -78,9 +115,7 @@ herdr agent start <name> --kind <kind> --pane <pane-id>
 
 Pass verified native agent arguments only after `--`. Use model names, permission flags, and startup modes confirmed by the installed agent. Treat `agent start` as complete only after Herdr recognizes the interactive agent and reports it ready.
 
-When parallel edits overlap, create or open isolated worktrees using the repository's branch conventions, then split each worker pane with `--cwd <worktree-path>`. Preserve the mapping between worktree, worker name, and claimed files in the registry.
-
-**Complete when:** each worker has a unique valid name, explicit pane ID, intended working directory, authoritative `idle` or `done` state, and the caller remains focused.
+**Complete when:** each worker has a unique valid name, explicit pane ID, a cwd and tab conforming to the Layout Contract, authoritative `idle` or `done` state, and the caller remains focused.
 
 ## 4. Dispatch Work
 
@@ -154,17 +189,23 @@ After recording the report and disposition, close panes created for completed wo
 herdr pane close <pane-id>
 ```
 
+For worktree tabs the delegation created, remove the checkout only after its changes are integrated or explicitly abandoned:
+
+```bash
+herdr worktree remove --workspace <id>
+```
+
 Keep existing panes and any pane with unresolved evidence. Require explicit user approval before closing a pane, tab, workspace, session, or server outside the delegation's created scope.
 
 Report the controller result compactly:
 
 ```text
 Herdr: PASS | PARTIAL | FAIL
-Controller: <workspace>/<tab>/<pane>
+Controller: <session>/<workspace>/<tab>/<pane>
 Workers: <name>=<state/disposition>, ...
 Verification: <checks rerun>
-Retired: <created panes closed; retained panes with reason>
+Retired: <created panes and worktrees closed; retained items with reason>
 Blockers: <none or exact evidence>
 ```
 
-**Complete when:** all workers have outcomes and dispositions, every created pane is closed or explicitly retained with a reason, caller focus is preserved, and the final answer contains only verified results and current blockers.
+**Complete when:** all workers have outcomes and dispositions, every created pane or worktree tab is closed or explicitly retained with a reason, caller focus is preserved, and the final answer contains only verified results and current blockers.
