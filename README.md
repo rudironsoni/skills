@@ -31,7 +31,7 @@ make link
 
 - [goal-mode](./skills/orchestration/goal-mode/SKILL.md) - Run and bound Claude Code goal loops with evaluator-visible evidence.
 - [codex-orchestrator](./skills/orchestration/codex-orchestrator/SKILL.md) - Delegate independent Codex work with explicit ownership and integration checks.
-- [herdr-agent-comms](./skills/orchestration/herdr-agent-comms/SKILL.md) - Manage Herdr agent fleets, messaging, delivery verification, and waits.
+- [herdr-orchestration](./skills/orchestration/herdr-orchestration/SKILL.md) - Orchestrate Herdr workers with scoped delegation, lifecycle waits, verification, and cleanup.
 
 ### Prompting
 
