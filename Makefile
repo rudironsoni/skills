@@ -21,9 +21,9 @@ validate: validate-json validate-skills validate-claude
 validate-json:
 	@python3 -m json.tool .claude-plugin/plugin.json >/dev/null
 	@python3 -m json.tool .claude-plugin/marketplace.json >/dev/null
-	@python3 -m json.tool .release-please-manifest.json >/dev/null
+	@python3 -m json.tool .changeset/config.json >/dev/null
 	@python3 -m json.tool package.json >/dev/null
-	@python3 -m json.tool release-please-config.json >/dev/null
+	@python3 -m json.tool package-lock.json >/dev/null
 	@printf '%s\n' 'JSON manifests are valid.'
 
 validate-skills:

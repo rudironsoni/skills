@@ -4,21 +4,31 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 permissions:
   contents: write
   pull-requests: write
 
 concurrency:
-  group: release-please
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Run Release Please
-        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Update version pull request or publish release
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        with:
+          version: npm run version
+          publish: npx changeset tag
+          commit: "chore: version skills"
+          title: "chore: version skills"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

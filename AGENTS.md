@@ -19,6 +19,14 @@ This repository is a public distribution for Rudimar Ronsoni's reusable agent sk
 - Keep Codex and OpenCode installation on the Agent Skills standard and `make link`; do not add an incomplete native plugin surface for the grouped tree.
 - Add every published skill to its capability README and the top-level README.
 
+## Releases
+
+- Add a `.changeset/<slug>.md` file for every releasable change, with `"rudironsoni-skills": patch`, `minor`, or `major` in its frontmatter.
+- Use `minor` for new skills, `patch` for compatible fixes, and `major` for breaking changes.
+- Changesets accumulate on `main`; the release workflow maintains one rolling version pull request.
+- Merge the version pull request to publish the Git tag and GitHub Release. The package is private and is not published to npm.
+- Keep `package.json`, `package-lock.json`, and `.claude-plugin/plugin.json` on the same strict semantic version.
+
 ## Skill Shape
 
 Each skill must include `SKILL.md` with YAML frontmatter containing at least:

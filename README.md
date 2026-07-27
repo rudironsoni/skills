@@ -61,7 +61,7 @@ make link
 make unlink
 ```
 
-The complete collection and Claude plugin are versioned together. Git tags and GitHub Releases are authoritative.
+The complete collection and Claude plugin are versioned together. Every releasable change must include a Changesets fragment. Merging the rolling version pull request publishes the Git tag and GitHub Release; this private package is not published to npm.
 
 ## License
 
