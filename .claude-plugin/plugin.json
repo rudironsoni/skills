@@ -20,6 +20,7 @@
   "skills": [
     "./skills/orchestration/goal-mode",
     "./skills/orchestration/codex-orchestrator",
+    "./skills/orchestration/herdr-agent-comms",
     "./skills/prompting/prompting-fable-5",
     "./skills/prompting/prompting-opus-4-8",
     "./skills/prompting/prompting-sonnet-5",
