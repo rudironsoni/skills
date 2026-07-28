@@ -19,6 +19,10 @@ Act as the **controller** for interactive worker agents running in Herdr panes. 
 - Keep the caller pane focused. Use `--current`, explicit IDs, and `--no-focus` for background work.
 - Place every session, workspace, tab, and worktree per the Layout Contract.
 - Start workers as `codex` by default; start `opencode` or `pi` only when the user names them. When an organization policy skill is loaded, its worker-kind and branch-naming rules override these defaults.
+- Before provisioning, check whether the target path or named system belongs to an organization with a policy overlay skill (for example, any path under `~/src/Feverup` → `fever-herdr-orchestration`). Load that overlay first; its rules override these defaults.
+- The controller writes no work product. Once a task is delegated, never run Edit/Write/sed/perl, gating checks, rebases, or commits inside a worker's worktree while that worker exists. Every change flows through `herdr agent prompt`. The urge to "just fix it quickly" is the signal to send a follow-up packet instead. Sole exception: integration actions in §6 after the owning worker is retired or explicitly paused, stated as such in the report.
+- Every worker runs in a worktree checked out on its target branch. Never `agent start` in a pane whose cwd is the repo's primary checkout or whose `git rev-parse --abbrev-ref HEAD` is the default branch (`master`/`main`) — including read-only reviews. A review gets a worktree on the PR branch, fetched first.
+- Tab labels are derived, never retyped. Compute `label="<repo>-<branch-folder>"` once, keep it in a shell variable, and pass that same variable to every command taking `--label`. Retyping, shortening, or dropping the `<repo>-` prefix is a contract violation.
 - Give each worker an independent objective and file claim. Isolate overlapping edits in separate worktrees.
 - Send input only to a uniquely resolved worker in `idle` or `done` state.
 - Treat worker claims as untrusted until the controller verifies them.
@@ -97,15 +101,38 @@ herdr pane split --current --direction right --cwd "$PWD" --no-focus
 
 Use `down` when the caller pane is narrow or tall. Read the new pane ID from `.result.pane.pane_id`; never infer it from visual order.
 
-For overlapping or isolated work, derive the branch and worktree names per the Layout Contract, then create a worktree tab inside the repo workspace:
+For overlapping or isolated work, provision idempotently:
+
+1. **Reuse before create.** Run `herdr worktree list`, `herdr tab list`, and `herdr agent list`. When a worktree, tab, or agent already matches the target branch, reuse it (`herdr worktree open` for an existing checkout). On `worktree_create_failed … already exists`, switch to reuse — never retry with name variations.
+2. **Fetch gate.** `git fetch` the base or target ref and require success before creating the worktree. On auth failure (for example `Permission denied (publickey)`), stop and report — never provision a worker against a stale checkout.
+3. **Create with a single stored label.** Derive the branch per the Layout Contract, compute `label="<repo>-<branch-folder>"` once, then:
 
 ```bash
+label="<repo>-<branch-folder>"
 herdr worktree create --workspace <repo-workspace-id> --branch <branch> \
-  --path ~/src/<organization>/<repo>.worktrees/<repo>-<branch-folder> \
-  --label <repo>-<branch-folder> --no-focus --json
+  --path ~/src/<organization>/<repo>.worktrees/"$label" \
+  --label "$label" --no-focus --json
 ```
 
-Use `herdr worktree open` for an existing checkout. Read tab and pane IDs from the JSON result. Preserve the mapping between worktree, worker name, and claimed files in the registry.
+4. **Materialize the tab.** In current Herdr (0.7.x), `worktree create --workspace <ws>` spawns a **new workspace**, not a tab inside `<ws>`. Move the resulting pane into the repo workspace as a tab, passing the same `$label` variable, then close the empty side-effect workspace:
+
+```bash
+herdr pane move <new-pane-id> --new-tab --workspace <repo-workspace-id> --label "$label" --no-focus
+herdr pane list --workspace <side-effect-workspace-id>   # must be empty
+herdr workspace close <side-effect-workspace-id>
+```
+
+5. **Read-back gate (mandatory).** Conformance is proven by read-back, never by the create commands' exit codes:
+
+```bash
+herdr tab list --workspace <repo-workspace-id>            # tab label == "$label" exactly
+git -C <worktree-path> rev-parse --abbrev-ref HEAD        # == target branch
+git -C <worktree-path> rev-parse --show-toplevel          # == worktree path
+```
+
+Fix any mismatch (`herdr pane rename`, or recreate) before `agent start`.
+
+Read tab and pane IDs from the JSON result. Preserve the mapping between worktree, worker name, and claimed files in the registry.
 
 Start a supported agent in an existing shell pane at an interactive prompt, with the kind routed by the invariants:
 
@@ -115,7 +142,7 @@ herdr agent start <name> --kind <kind> --pane <pane-id>
 
 Pass verified native agent arguments only after `--`. Use model names, permission flags, and startup modes confirmed by the installed agent. Treat `agent start` as complete only after Herdr recognizes the interactive agent and reports it ready.
 
-**Complete when:** each worker has a unique valid name, explicit pane ID, a cwd and tab conforming to the Layout Contract, authoritative `idle` or `done` state, and the caller remains focused.
+**Complete when:** `herdr tab list` output shows every planned tab labeled exactly `<repo>-<branch-folder>`, each worktree's `git rev-parse --abbrev-ref HEAD` matches its target branch, no empty side-effect workspaces remain, each worker has a unique valid name, explicit pane ID, authoritative `idle` or `done` state, and the caller remains focused.
 
 ## 4. Dispatch Work
 
@@ -140,7 +167,11 @@ herdr agent wait <target> --timeout 60000
 
 Use `agent prompt` for agent work. Keep raw-terminal control outside this agent orchestration flow and derive any required pane command from the installed CLI.
 
-**Complete when:** every packet was delivered to its intended worker, each worker showed an observed lifecycle change, and every dispatch is represented in the registry.
+Confirm acceptance after every dispatch: `herdr agent get <target>` must show `working` (or the prompt visibly consumed). If the worker is still `idle`, send exactly one `herdr pane send-keys <pane-id> Enter` and re-check; if still `idle`, read the pane (`herdr agent read <target> --source recent-unwrapped --lines 60`) to diagnose instead of sending more keystrokes.
+
+Set worker configuration (model, effort, permissions) through the delegation packet or verified `agent start` arguments — never by spraying `/model` or `/effort` as raw pane text across a fleet.
+
+**Complete when:** every packet was delivered to its intended worker, `herdr agent get` confirmed each target transitioned out of `idle`, and every dispatch is represented in the registry.
 
 ## 5. Observe to a Terminal Outcome
 
@@ -163,6 +194,8 @@ Interpret states precisely:
 | `idle` | Accept only after the dispatched work produced an observed state change. |
 | `done` | Read the unseen completed report. |
 
+An expired `agent wait --timeout` is a check-in, never a failure verdict: re-run `herdr agent get`; when the state is `working`, loop the wait. Declare a worker failed only on a `blocked` state that cannot be answered, an `unknown` state that `agent explain` cannot repair, or no state or output change across 3 consecutive check-ins.
+
 Remember that CLI reads do not mark background work as seen. If the alternate-screen transcript is incomplete, ask the settled worker to write its complete report to a temporary Markdown file and return only the path, then read the file directly.
 
 **Complete when:** every dispatched worker is `idle`, `done`, `blocked`, failed, or explicitly timed out with current evidence. Include every worker in the report.
@@ -183,17 +216,13 @@ Pause integration when a worker edited outside its claim, changed a shared surfa
 
 ## 7. Retire and Report
 
-After recording the report and disposition, close panes created for completed workers unless the user asked to keep them:
+After recording the report and disposition, retire each completed worker through this ladder, in order, unless the user asked to keep it:
 
-```bash
-herdr pane close <pane-id>
-```
-
-For worktree tabs the delegation created, remove the checkout only after its changes are integrated or explicitly abandoned:
-
-```bash
-herdr worktree remove --workspace <id>
-```
+1. Exit the agent in-pane first: `herdr agent stop <name>` when available, otherwise `herdr pane send-text <pane-id> "/exit"` followed by `herdr pane send-keys <pane-id> Enter`. Confirm the shell prompt returned via `herdr pane read`.
+2. Then close the pane: `herdr pane close <pane-id>`.
+3. If `pane close` returns `confirmation_required` (the pane belongs to a worktree group), **stop the ladder**. Never escalate to `herdr workspace close` — that destroys the whole worktree group and kills every sibling worker in it. Stay with the in-pane exit from step 1, or ask the user.
+4. For worktree tabs the delegation created, remove the checkout only after its changes are integrated or explicitly abandoned: `herdr worktree remove --workspace <id>`.
+5. Close side-effect workspaces left over from provisioning only after `herdr pane list --workspace <id>` shows them empty.
 
 Keep existing panes and any pane with unresolved evidence. Require explicit user approval before closing a pane, tab, workspace, session, or server outside the delegation's created scope.
 
