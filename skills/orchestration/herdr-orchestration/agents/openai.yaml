@@ -1,4 +1,4 @@
 interface:
   display_name: "Herdr Orchestration"
-  short_description: "Orchestrate Herdr worker agent fleets"
-  default_prompt: "Use $herdr-orchestration to delegate this task to scoped Herdr workers and verify their results."
+  short_description: "Orchestrate Herdr workers with two-way messaging"
+  default_prompt: "Use $herdr-orchestration to delegate this task to scoped Herdr workers, exchange updates and questions, and verify their results."

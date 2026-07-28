@@ -2,9 +2,9 @@
 name: herdr-orchestration
 description: >-
   Orchestrate interactive Herdr worker agents for explicit Herdr requests:
-  delegate bounded tasks, message or inspect existing agents, wait on lifecycle
-  states, verify reports, integrate results, and retire worker panes. Requires
-  HERDR_ENV=1.
+  delegate bounded tasks, exchange run-scoped updates, questions, answers, and
+  results bidirectionally, inspect lifecycle state, verify reports, integrate
+  results, and retire worker panes. Requires HERDR_ENV=1.
 ---
 
 # Herdr Orchestration
@@ -24,7 +24,7 @@ Act as the **controller** for interactive worker agents running in Herdr panes. 
 - Every worker runs in a worktree checked out on its target branch. Never `agent start` in a pane whose cwd is the repo's primary checkout or whose `git rev-parse --abbrev-ref HEAD` is the default branch (`master`/`main`) — including read-only reviews. A review gets a worktree on the PR branch, fetched first.
 - Tab labels are derived, never retyped. Compute `label="<repo>-<branch-folder>"` once, keep it in a shell variable, and pass that same variable to every command taking `--label`. Retyping, shortening, or dropping the `<repo>-` prefix is a contract violation.
 - Give each worker an independent objective and file claim. Isolate overlapping edits in separate worktrees.
-- Send input only to a uniquely resolved worker in `idle` or `done` state.
+- Send initial work only to a uniquely resolved worker in `idle` or `done` state. Use the Message Contract for run-scoped traffic; Herdr 0.7.5 can submit that traffic while the target is `working`.
 - Treat worker claims as untrusted until the controller verifies them.
 - Record a worker's report before closing a pane created for the delegation.
 
@@ -53,6 +53,7 @@ herdr status
 herdr --help
 herdr integration status
 herdr pane current --current
+herdr agent get "$HERDR_PANE_ID"
 herdr agent list
 ```
 
@@ -66,9 +67,9 @@ herdr workspace create --cwd ~/src/<organization>/<repo> --label <repo> --no-foc
 herdr tab list
 ```
 
-Require a current integration for each requested worker kind so lifecycle detection is authoritative. Ask before installing or updating an integration because that changes durable machine state.
+Pin `controller_target="$HERDR_PANE_ID"`; never derive it from UI focus. Create one run ID for this orchestration as `run_id="${HERDR_PANE_ID}-$(date -u +%Y%m%dT%H%M%SZ)"`. Keep both values unchanged for the run and pass them to every worker. Require a current integration for each requested worker kind so lifecycle detection is authoritative. Ask before installing or updating an integration because that changes durable machine state.
 
-**Complete when:** Herdr is reachable, the session matches the target organization, the target repo has a workspace and repo tab matching the Layout Contract, caller workspace/tab/pane IDs are recorded, existing agents are inventoried, and every requested worker kind has a usable integration. If `HERDR_ENV=1` is absent, report that this agent is outside Herdr and stop.
+**Complete when:** Herdr is reachable, the session matches the target organization, the target repo has a workspace and repo tab matching the Layout Contract, caller workspace/tab/pane IDs and the run ID are recorded, existing agents are inventoried, and every requested worker kind has a usable integration. If `HERDR_ENV=1` is absent, report that this agent is outside Herdr and stop.
 
 ## 2. Build Delegation Packets
 
@@ -82,13 +83,44 @@ Create one standalone packet per worker containing:
 - evidence required, including file references and genuine command output;
 - verification commands or user-visible flows;
 - stop conditions for unexpected structure, repeated failures, authentication, or out-of-scope edits;
-- execution mode: direct by default, or plan-first only when the user requested it.
+- execution mode: direct by default, or plan-first only when the user requested it;
+- the exact run ID, controller target, worker target, task label, and Message Contract.
 
-Prefer small independent slices. Maintain a worker registry with name, kind, pane ID, objective, claimed files, state, reported checks, controller verification, and final disposition.
+Prefer small independent slices. Use a lowercase hyphen-case task label without spaces for each packet. Maintain a worker registry with run ID, task label, name, kind, pane ID, reply target, objective, claimed files, state, last callback, pending question, reported checks, controller verification, and final disposition.
 
 For plan-first work, inspect the installed agent's current mode controls, confirm plan mode visibly before sending the packet, review the returned plan against scope, and accept it only when the user requested that execution mode. Derive TUI labels and key sequences from the installed agent because they are version-specific.
 
 **Complete when:** every worker has a non-overlapping contract, a routed kind, required evidence, stop conditions, and a registry entry.
+
+## Message Contract
+
+Use `herdr agent prompt` for bidirectional controller-worker traffic. Send one header line followed by a concise body or a path to a larger report:
+
+```text
+[herdr-orchestration run=<run-id> task=<task-label> from=<sender> kind=<kind> reply-to=<target>]
+<message>
+```
+
+`reply-to` is the exact unique agent name or pane ID that the receiver should target. Workers send `update`, `question`, `blocked`, or `result`; the controller sends `answer`, `follow-up`, or `stop`.
+
+Give every worker this callback pattern with all placeholders already filled:
+
+```bash
+herdr agent prompt <controller-target> \
+  "[herdr-orchestration run=<run-id> task=<task-label> from=<worker-name> kind=<kind> reply-to=<worker-target>]
+<message>"
+```
+
+- Send protocol messages without `--wait`. Herdr may accept a prompt while the target is `working`, but a wait observes lifecycle state, not that specific message or turn.
+- Treat exit status 0 as submission confirmation only. Do not resend after success and do not treat it as acknowledgement or task completion.
+- On a nonzero send, preserve the exact error in the sender's visible final response and settle so the receiver can recover through lifecycle inspection. Do not hide or loop on transport failure.
+- Send `update` only at meaningful checkpoints and continue working without expecting a reply.
+- Send `question` when the controller can answer from task context; send `blocked` when user authority, authentication, permission, or scope is required. After either message, end the turn and wait for `answer`, `follow-up`, or `stop`.
+- Send `result` with changed files, checks, residual risk, and report paths, then end the turn. A result is a claim until the controller verifies it.
+- Validate inbound run ID, task label, sender, and reply target against the registry. Ignore and report stale, unknown, or mismatched messages instead of acting on them.
+- Keep large logs, diffs, and reports out of prompts. Write them to an accessible Markdown file and send the exact path.
+
+Use normal `idle` or `done` delivery for initial tasks and routine follow-ups when possible. Use working-target delivery only for protocol callbacks and explicit urgent `stop` or scope-correction messages.
 
 ## 3. Provision Interactive Workers
 
@@ -167,13 +199,17 @@ herdr agent wait <target> --timeout 60000
 
 Use `agent prompt` for agent work. Keep raw-terminal control outside this agent orchestration flow and derive any required pane command from the installed CLI.
 
-Confirm acceptance after every dispatch: `herdr agent get <target>` must show `working` (or the prompt visibly consumed). If the worker is still `idle`, send exactly one `herdr pane send-keys <pane-id> Enter` and re-check; if still `idle`, read the pane (`herdr agent read <target> --source recent-unwrapped --lines 60`) to diagnose instead of sending more keystrokes.
+Confirm acceptance after every dispatch: `herdr agent get <target>` must show `working`, or `agent prompt --wait` must return a settled state after observing activity. If Herdr returns `agent_prompt_stalled`, read the pane once (`herdr agent read <target> --source recent-unwrapped --lines 60`) and diagnose. Do not inject a second Enter after `agent prompt`; it already submits text and Enter atomically.
 
 Set worker configuration (model, effort, permissions) through the delegation packet or verified `agent start` arguments — never by spraying `/model` or `/effort` as raw pane text across a fleet.
 
 **Complete when:** every packet was delivered to its intended worker, `herdr agent get` confirmed each target transitioned out of `idle`, and every dispatch is represented in the registry.
 
 ## 5. Observe to a Terminal Outcome
+
+Treat validated callbacks as the primary report channel. On `update`, record the checkpoint. On `question`, answer from established task context or surface the decision to the user, then send `answer` to `reply-to`. On `blocked`, surface the exact external decision and keep the worker. On `result`, record the report and begin verification. Send every response with the same run ID and task label and set `reply-to` to the pinned controller target.
+
+Use lifecycle state as liveness evidence and as the recovery path when a callback is missing. A settled worker without a valid `result` callback is not complete: read its recent output and request the missing result through the Message Contract.
 
 Treat a timeout as a check-in interval rather than a worker deadline. After a timeout, inspect current state and recent output, then resume waiting while the objective remains viable:
 
@@ -232,6 +268,7 @@ Report the controller result compactly:
 Herdr: PASS | PARTIAL | FAIL
 Controller: <session>/<workspace>/<tab>/<pane>
 Workers: <name>=<state/disposition>, ...
+Callbacks: <run-id and handled or missing worker messages>
 Verification: <checks rerun>
 Retired: <created panes and worktrees closed; retained items with reason>
 Blockers: <none or exact evidence>
