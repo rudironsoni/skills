@@ -44,6 +44,7 @@ Optional per-skill folders are allowed only when needed:
 - `scripts/`
 - `references/`
 - `assets/`
+- `templates/`
 
 Keep each skill self-contained. If several skills require the same reference, copy it into each skill and validate the copies are identical.
 

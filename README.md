@@ -42,6 +42,7 @@ make link
 ### Engineering
 
 - [linus-torvalds](./skills/engineering/linus-torvalds/SKILL.md) - Review and write code with Linus Torvalds-inspired engineering principles.
+- [rfc2119-engineering-playbooks](./skills/engineering/rfc2119-engineering-playbooks/SKILL.md) - Write and run RFC 2119 engineering playbooks (SOPs).
 
 ### Writing
 

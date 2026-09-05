@@ -17,8 +17,9 @@ README_PATH = REPO_ROOT / "README.md"
 CHANGESETS_CONFIG_PATH = REPO_ROOT / ".changeset" / "config.json"
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SEMVER_RE = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
-ALLOWED_RESOURCE_DIRS = {"agents", "assets", "references", "scripts"}
+ALLOWED_RESOURCE_DIRS = {"agents", "assets", "references", "scripts", "templates"}
 MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+FENCE_RE = re.compile(r"^```")
 
 
 def parse_frontmatter(text: str) -> dict[str, str]:
@@ -74,9 +75,21 @@ def load_json(path: Path, errors: list[str]) -> dict:
     return value
 
 
+def strip_fenced_code(text: str) -> str:
+    lines: list[str] = []
+    in_fence = False
+    for line in text.splitlines(keepends=True):
+        if FENCE_RE.match(line.lstrip()):
+            in_fence = not in_fence
+            continue
+        if not in_fence:
+            lines.append(line)
+    return "".join(lines)
+
+
 def validate_relative_links(root: Path, errors: list[str]) -> None:
     for markdown_path in sorted(root.rglob("*.md")):
-        text = markdown_path.read_text(encoding="utf-8")
+        text = strip_fenced_code(markdown_path.read_text(encoding="utf-8"))
         for raw_target in MARKDOWN_LINK_RE.findall(text):
             target = raw_target.strip().split("#", 1)[0]
             if not target or target.startswith(("#", "/", "http://", "https://", "mailto:")):

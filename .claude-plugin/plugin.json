@@ -25,6 +25,7 @@
     "./skills/prompting/prompting-opus-4-8",
     "./skills/prompting/prompting-sonnet-5",
     "./skills/engineering/linus-torvalds",
+    "./skills/engineering/rfc2119-engineering-playbooks",
     "./skills/writing/ogilvy-writing",
     "./skills/writing/stop-slop",
     "./skills/visualization/obsidian-excalidraw-diagram"
